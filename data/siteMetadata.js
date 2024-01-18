@@ -1,7 +1,7 @@
 /** @type {import("pliny/config").PlinyConfig } */
 const siteMetadata = {
-  title: 'Motions Technologies blog Canada',
-  author: 'Jawad Arif',
+  title: 'Motions Technologies Canada',
+  author: 'Motions Technologies',
   headerTitle: 'Motions Technologies',
   description: 'A blog created by Motions Tech',
   language: 'en-us',
