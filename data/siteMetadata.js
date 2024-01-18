@@ -8,7 +8,7 @@ const siteMetadata = {
   theme: 'system', // system, dark or light
   siteUrl: 'https://motionstechnologies.com',
   siteRepo: 'https://github.com/algorithmikk',
-  siteLogo: '/static/images/logo.png',
+  siteLogo: '/static/images/motiontechnologies-logos_white.png',
   socialBanner: '/static/images/twitter-card.png',
   mastodon: 'https://mastodon.social/@mastodonuser',
   email: 'address@yoursite.com',
