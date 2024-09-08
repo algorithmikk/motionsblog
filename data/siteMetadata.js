@@ -9,7 +9,7 @@ const siteMetadata = {
   siteUrl: 'https://motionstechnologies.com',
   siteRepo: 'https://github.com/algorithmikk',
   siteLogo: '/static/images/motiontechnologies-logos_white.png',
-  socialBanner: '/static/images/twitter-card.png',
+  socialBanner: '/static/images/motion_white.png',
   email: 'jawad.arif@motionstechnologies.com',
   github: 'https://github.com/algorithmikk',
   linkedin: 'https://www.linkedin.com/company/motionstech',
