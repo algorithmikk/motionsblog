@@ -1,5 +1,5 @@
 // components/Mermaid.tsx
-"use client"
+'use client'
 
 import mermaid from 'mermaid'
 import { useEffect, useRef, useState } from 'react'
