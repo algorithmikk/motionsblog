@@ -1,0 +1,144 @@
+---
+title: 'AWS ECS Deployment Blueprint: A Complete Technical Guide with Diagrams'
+date: '2024-10-29'
+tags: ['AWS', 'ECS', 'DevOps', 'Spring Boot', 'Cloud', 'Docker', 'Infrastructure']
+draft: false
+summary: A comprehensive guide to deploying Spring Boot applications on AWS ECS, including detailed diagrams, configuration examples, and step-by-step instructions for creating a resilient cloud infrastructure.
+---
+
+# AWS ECS Deployment Blueprint: A Complete Technical Guide with Diagrams
+
+## Introduction
+
+In today's fast-paced digital world, deploying and managing applications efficiently is crucial for business success. Amazon Elastic Container Service (ECS) stands out as a powerful solution for deploying containerized applications, but setting it up correctly requires careful planning and understanding of various AWS components.
+
+This guide is born from real-world experience deploying Spring Boot applications on AWS ECS. Whether you're migrating existing applications or starting new projects, this blueprint will help you create a robust, scalable, and maintainable infrastructure.
+
+### Why Choose ECS for Spring Boot Applications?
+
+Before diving into the technical details, let's understand why ECS is an excellent choice for Spring Boot deployments:
+
+1. **Simplified Container Management**
+   - Automatic container orchestration
+   - Built-in task scheduling
+   - Easy container updates and rollbacks
+
+2. **AWS Integration**
+   - Seamless integration with other AWS services
+   - Native logging with CloudWatch
+   - Built-in load balancing with ALB
+   - Automated container registry with ECR
+
+3. **Cost Optimization**
+   - Pay-per-use pricing model
+   - Efficient resource utilization
+   - Automated scaling capabilities
+
+### High-Level Architecture Overview
+
+<MermaidChart
+  chart={`
+graph TB
+    Internet((Internet)) --> ALB[Application Load Balancer]
+    ALB --> ECS[ECS Service]
+    ECS --> Task1[ECS Task 1]
+    ECS --> Task2[ECS Task 2]
+    Task1 --> Container1[Spring Boot Container]
+    Task2 --> Container2[Spring Boot Container]
+    Container1 --> ECR[(ECR Repository)]
+    Container2 --> ECR
+    
+    subgraph VPC
+        subgraph Public Subnet
+            ALB
+        end
+        subgraph Private Subnet
+            ECS
+            Task1
+            Task2
+        end
+    end
+`}
+/>
+
+## 1. Infrastructure Prerequisites
+
+### 1.1 Network Architecture Deep Dive
+
+<MermaidChart
+  chart={`
+graph TB
+    Internet((Internet)) --> ALB[ALB]
+    ALB --> SG1[Security Group 1]
+    subgraph VPC[VPC vpc-0f93f6b4c0e37897e]
+        subgraph Public Subnets
+            PS1[us-east-1a: subnet-05b7643cd2599a6b9]
+            PS2[us-east-1c: subnet-08ed82bd479b486b1]
+        end
+        subgraph Private Subnets
+            PRS1[Private Subnet 1]
+            PRS2[Private Subnet 2]
+        end
+    end
+    SG1 --> PS1
+    SG1 --> PS2
+    PS1 --> PRS1
+    PS2 --> PRS2
+`}
+/>
+
+### Understanding the Network Layout
+
+The network architecture is designed with security and high availability in mind. Let's break down each component:
+
+#### 1. VPC Configuration
+Our Virtual Private Cloud (VPC) provides the networking foundation:
+
+```yaml
+vpc:
+  id: vpc-0f93f6b4c0e37897e
+  cidr: 172.31.0.0/16
+  features:
+    - DNS hostname enabled
+    - DNS resolution enabled
+    - Internet Gateway attached
+```
+
+Key considerations for VPC setup:
+- Large CIDR range for future growth
+- DNS support for service discovery
+- Proper routing tables configuration
+
+#### 2. Subnet Strategy
+We implement a multi-AZ strategy with public and private subnets:
+
+```yaml
+subnets:
+  public:
+    - id: subnet-05b7643cd2599a6b9
+      az: us-east-1a
+      cidr: 172.31.80.0/20
+    - id: subnet-08ed82bd479b486b1
+      az: us-east-1c
+      cidr: 172.31.32.0/20
+```
+
+Benefits of this setup:
+- High availability across zones
+- Isolation of application layer
+- Secure access patterns
+
+#### 3. Security Groups
+Implement tight network controls:
+
+```yaml
+security_groups:
+  - id: sg-04b9ee59e194056ab
+    name: ecs-security-group
+    rules:
+      inbound:
+        - port: 80
+          source: 0.0.0.0/0
+        - port: 8080
+          source: 0.0.0.0/0
+```
