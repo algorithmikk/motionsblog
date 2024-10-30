@@ -1,144 +1,888 @@
 ---
-title: 'AWS ECS Deployment Blueprint: A Complete Technical Guide with Diagrams'
+title: 'Complete Guide: Deploying Spring Boot API on AWS ECS'
 date: '2024-10-29'
-tags: ['AWS', 'ECS', 'DevOps', 'Spring Boot', 'Cloud', 'Docker', 'Infrastructure']
+tags: ['AWS', 'ECS', 'Spring Boot', 'Docker', 'DevOps', 'Cloud', 'Microservices']
 draft: false
-summary: A comprehensive guide to deploying Spring Boot applications on AWS ECS, including detailed diagrams, configuration examples, and step-by-step instructions for creating a resilient cloud infrastructure.
+summary: 'A comprehensive guide to deploying Spring Boot APIs on Amazon ECS, covering everything from application setup to production deployment and monitoring.'
 ---
 
-# AWS ECS Deployment Blueprint: A Complete Technical Guide with Diagrams
+# Complete Guide: Deploying Spring Boot API on AWS ECS
 
 ## Introduction
 
-In today's fast-paced digital world, deploying and managing applications efficiently is crucial for business success. Amazon Elastic Container Service (ECS) stands out as a powerful solution for deploying containerized applications, but setting it up correctly requires careful planning and understanding of various AWS components.
+Deploying a Spring Boot API to production requires careful planning and a deep understanding of both application architecture and infrastructure requirements. This comprehensive guide will walk you through every aspect of deploying a Spring Boot API on Amazon ECS (Elastic Container Service), providing you with a production-ready setup that includes proper monitoring, scaling, and security measures.
 
-This guide is born from real-world experience deploying Spring Boot applications on AWS ECS. Whether you're migrating existing applications or starting new projects, this blueprint will help you create a robust, scalable, and maintainable infrastructure.
+### Why Choose AWS ECS for Spring Boot Applications?
 
-### Why Choose ECS for Spring Boot Applications?
+Amazon ECS offers several compelling advantages for Spring Boot deployments:
 
-Before diving into the technical details, let's understand why ECS is an excellent choice for Spring Boot deployments:
+1. **Container Orchestration Benefits**
+   - Automated container placement and scheduling
+   - Built-in service discovery
+   - Integrated load balancing
+   - Automated container recovery
+   - Easy rolling updates and rollbacks
 
-1. **Simplified Container Management**
-   - Automatic container orchestration
-   - Built-in task scheduling
-   - Easy container updates and rollbacks
+2. **AWS Integration Features**
+   - Native CloudWatch integration for logs and metrics
+   - AWS Secrets Manager for sensitive data
+   - AWS Parameter Store for configuration
+   - IAM roles for fine-grained security
+   - VPC integration for network isolation
 
-2. **AWS Integration**
-   - Seamless integration with other AWS services
-   - Native logging with CloudWatch
-   - Built-in load balancing with ALB
-   - Automated container registry with ECR
-
-3. **Cost Optimization**
+3. **Cost Optimization Capabilities**
    - Pay-per-use pricing model
-   - Efficient resource utilization
-   - Automated scaling capabilities
+   - Spot instance support for cost savings
+   - Right-sizing recommendations
+   - Resource utilization tracking
+   - Reserved capacity options
 
-### High-Level Architecture Overview
+4. **Operational Excellence**
+   - Managed container infrastructure
+   - Automated patch management
+   - Built-in high availability
+   - Multiple deployment strategies
+   - Extensive monitoring capabilities
 
-<MermaidChart
-  chart={`
-graph TB
-    Internet((Internet)) --> ALB[Application Load Balancer]
-    ALB --> ECS[ECS Service]
-    ECS --> Task1[ECS Task 1]
-    ECS --> Task2[ECS Task 2]
-    Task1 --> Container1[Spring Boot Container]
-    Task2 --> Container2[Spring Boot Container]
-    Container1 --> ECR[(ECR Repository)]
-    Container2 --> ECR
+### Prerequisites and Environment Setup
+
+Before starting the deployment process, ensure you have:
+
+1. **Development Environment**
+```bash
+# Required software versions
+java -version  # Java 17 or later
+mvn -version   # Maven 3.8+ or Gradle 7+
+docker --version  # Docker 20.10+
+aws --version    # AWS CLI 2.0+
+git --version    # Git 2.0+
+```
+
+2. **AWS Account Configuration**
+```bash
+# Configure AWS CLI
+aws configure
+AWS Access Key ID: YOUR_ACCESS_KEY
+AWS Secret Access Key: YOUR_SECRET_KEY
+Default region name: us-east-1
+Default output format: json
+
+# Verify configuration
+aws sts get-caller-identity
+```
+
+3. **Required AWS Permissions**
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ecs:*",
+                "ecr:*",
+                "elasticloadbalancing:*",
+                "cloudwatch:*",
+                "logs:*",
+                "ec2:*",
+                "iam:PassRole"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+## 1. Spring Boot Application Setup
+
+### 1.1 Application Configuration
+
+#### Basic Spring Boot Setup
+
+1. **Project Structure**
+```plaintext
+spring-api/
+├── src/
+│   ├── main/
+│   │   ├── java/
+│   │   │   └── com/example/api/
+│   │   │       ├── Application.java
+│   │   │       ├── config/
+│   │   │       ├── controller/
+│   │   │       ├── service/
+│   │   │       └── model/
+│   │   └── resources/
+│   │       ├── application.yml
+│   │       ├── application-prod.yml
+│   │       └── logback-spring.xml
+├── Dockerfile
+├── docker-compose.yml
+└── pom.xml
+```
+
+2. **Essential Dependencies (pom.xml)**
+```xml
+<dependencies>
+    <!-- Spring Boot Starters -->
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-validation</artifactId>
+    </dependency>
     
-    subgraph VPC
-        subgraph Public Subnet
-            ALB
-        end
-        subgraph Private Subnet
-            ECS
-            Task1
-            Task2
-        end
-    end
-`}
-/>
+    <!-- Monitoring -->
+    <dependency>
+        <groupId>io.micrometer</groupId>
+        <artifactId>micrometer-registry-prometheus</artifactId>
+    </dependency>
+    
+    <!-- AWS SDK -->
+    <dependency>
+        <groupId>com.amazonaws</groupId>
+        <artifactId>aws-java-sdk-secretsmanager</artifactId>
+        <version>1.12.261</version>
+    </dependency>
+</dependencies>
+```
 
-## 1. Infrastructure Prerequisites
+3. **Application Properties (application.yml)**
+```yaml
+spring:
+  application:
+    name: spring-api
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+    
+server:
+  port: 8080
+  shutdown: graceful
+  
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  health:
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true
+    
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  level:
+    root: INFO
+    com.example.api: DEBUG
+    
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
+```
 
-### 1.1 Network Architecture Deep Dive
+4. **Production Properties (application-prod.yml)**
+```yaml
+spring:
+  main:
+    banner-mode: off
+    
+server:
+  tomcat:
+    max-threads: 200
+    accept-count: 100
+    
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: never
+      
+logging:
+  pattern:
+    console: "%d{ISO8601} [%X{traceId}/%X{spanId}] %-5level [%t] %C{40}: %msg%n"
+```
+
+### 1.2 Containerization Setup
+
+1. **Dockerfile (Multi-stage build)**
+```dockerfile
+# Build stage
+FROM maven:3.8.4-openjdk-17-slim AS builder
+WORKDIR /app
+COPY pom.xml .
+# Download dependencies first (cache layer)
+RUN mvn dependency:go-offline -B
+COPY src ./src
+RUN mvn clean package -DskipTests
+
+# Runtime stage
+FROM eclipse-temurin:17-jre-focal
+WORKDIR /app
+
+# Add non-root user
+RUN addgroup --system --gid 1001 appuser && \
+    adduser --system --uid 1001 --group appuser
+
+# Install tools for debugging and health checks
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    jq \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy jar from builder stage
+COPY --from=builder /app/target/*.jar app.jar
+
+# Set permissions
+RUN chown -R appuser:appuser /app
+USER appuser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s \
+    CMD curl -f http://localhost:8080/actuator/health || exit 1
+
+# Environment variables
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
+
+# Expose port
+EXPOSE 8080
+
+# Run application
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+```
+
+2. **Docker Compose (for local testing)**
+```yaml
+version: '3.8'
+services:
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=local
+      - JAVA_OPTS=-Xmx512m -Xms256m
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+```
+
+### 1.3 Local Testing and Validation
+
+1. **Build and Run Locally**
+```bash
+# Build application
+mvn clean package
+
+# Build Docker image
+docker build -t spring-api .
+
+# Run container
+docker run -p 8080:8080 spring-api
+
+# Test endpoints
+curl http://localhost:8080/actuator/health
+curl http://localhost:8080/actuator/info
+```
+
+2. **Performance Testing**
+```bash
+# Install Apache Benchmark
+apt-get install apache2-utils
+
+# Run load test
+ab -n 1000 -c 10 http://localhost:8080/actuator/health
+
+# Memory monitoring
+docker stats spring-api
+```
+
+3. **Common Issues and Solutions**
+
+- **Memory Issues**
+```bash
+# Check container logs
+docker logs spring-api
+
+# Adjust memory settings
+docker run -p 8080:8080 -e JAVA_OPTS="-Xmx1g -Xms512m" spring-api
+```
+
+- **Connection Issues**
+```bash
+# Check container networking
+docker network inspect bridge
+
+# Test container DNS
+docker exec spring-api nslookup google.com
+```
+
+4. **Security Scanning**
+```bash
+# Scan Docker image
+docker scan spring-api
+
+# Check for vulnerabilities in dependencies
+mvn dependency-check:check
+```
+
+[End of Part 1 - Continue with Part 2 (AWS Infrastructure Setup)?]
+
+## 2. AWS Infrastructure Setup
+
+### 2.1 Network Architecture Overview
 
 <MermaidChart
   chart={`
 graph TB
-    Internet((Internet)) --> ALB[ALB]
-    ALB --> SG1[Security Group 1]
-    subgraph VPC[VPC vpc-0f93f6b4c0e37897e]
-        subgraph Public Subnets
-            PS1[us-east-1a: subnet-05b7643cd2599a6b9]
-            PS2[us-east-1c: subnet-08ed82bd479b486b1]
+    Internet((Internet)) --> IGW[Internet Gateway]
+    IGW --> ALB[Application Load Balancer]
+    subgraph VPC[VPC 10.0.0.0/16]
+        subgraph AZ1[Availability Zone 1]
+            subgraph Public1[Public Subnet 10.0.1.0/24]
+                ALB
+            end
+            subgraph Private1[Private Subnet 10.0.2.0/24]
+                ECS1[ECS Tasks]
+            end
         end
-        subgraph Private Subnets
-            PRS1[Private Subnet 1]
-            PRS2[Private Subnet 2]
+        subgraph AZ2[Availability Zone 2]
+            subgraph Public2[Public Subnet 10.0.3.0/24]
+                ALB2[ALB Replica]
+            end
+            subgraph Private2[Private Subnet 10.0.4.0/24]
+                ECS2[ECS Tasks]
+            end
         end
     end
-    SG1 --> PS1
-    SG1 --> PS2
-    PS1 --> PRS1
-    PS2 --> PRS2
+    ECS1 --> NAT1[NAT Gateway 1]
+    ECS2 --> NAT2[NAT Gateway 2]
+    NAT1 --> IGW
+    NAT2 --> IGW
 `}
 />
 
-### Understanding the Network Layout
+### 2.2 Network Component Setup
 
-The network architecture is designed with security and high availability in mind. Let's break down each component:
+1. **VPC Creation**
+```bash
+# Create VPC
+VPC_ID=$(aws ec2 create-vpc \
+    --cidr-block 10.0.0.0/16 \
+    --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=spring-api-vpc}]' \
+    --query 'Vpc.VpcId' \
+    --output text)
 
-#### 1. VPC Configuration
-Our Virtual Private Cloud (VPC) provides the networking foundation:
+# Enable DNS hostnames
+aws ec2 modify-vpc-attribute \
+    --vpc-id $VPC_ID \
+    --enable-dns-hostnames
 
-```yaml
-vpc:
-  id: vpc-0f93f6b4c0e37897e
-  cidr: 172.31.0.0/16
-  features:
-    - DNS hostname enabled
-    - DNS resolution enabled
-    - Internet Gateway attached
+# Create Internet Gateway
+IGW_ID=$(aws ec2 create-internet-gateway \
+    --query 'InternetGateway.InternetGatewayId' \
+    --output text)
+
+# Attach Internet Gateway to VPC
+aws ec2 attach-internet-gateway \
+    --vpc-id $VPC_ID \
+    --internet-gateway-id $IGW_ID
 ```
 
-Key considerations for VPC setup:
-- Large CIDR range for future growth
-- DNS support for service discovery
-- Proper routing tables configuration
+### 2.3 Subnet Architecture
 
-#### 2. Subnet Strategy
-We implement a multi-AZ strategy with public and private subnets:
+<MermaidChart
+  chart={`
+graph TB
+    subgraph "Availability Zones"
+        subgraph "AZ-1"
+            PUB1[Public 10.0.1.0/24]
+            PRIV1[Private 10.0.2.0/24]
+        end
+        subgraph "AZ-2"
+            PUB2[Public 10.0.3.0/24]
+            PRIV2[Private 10.0.4.0/24]
+        end
+    end
+    RT1[Public Route Table] --> PUB1
+    RT1 --> PUB2
+    RT2[Private Route Table 1] --> PRIV1
+    RT3[Private Route Table 2] --> PRIV2
+    NG1[NAT Gateway 1] --> PRIV1
+    NG2[NAT Gateway 2] --> PRIV2
+`}
+/>
 
-```yaml
-subnets:
-  public:
-    - id: subnet-05b7643cd2599a6b9
-      az: us-east-1a
-      cidr: 172.31.80.0/20
-    - id: subnet-08ed82bd479b486b1
-      az: us-east-1c
-      cidr: 172.31.32.0/20
+1. **Create Subnets**
+```bash
+# Public Subnets
+PUBLIC_SUBNET_1=$(aws ec2 create-subnet \
+    --vpc-id $VPC_ID \
+    --cidr-block 10.0.1.0/24 \
+    --availability-zone us-east-1a \
+    --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=public-1a}]' \
+    --query 'Subnet.SubnetId' \
+    --output text)
+
+PUBLIC_SUBNET_2=$(aws ec2 create-subnet \
+    --vpc-id $VPC_ID \
+    --cidr-block 10.0.3.0/24 \
+    --availability-zone us-east-1b \
+    --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=public-1b}]' \
+    --query 'Subnet.SubnetId' \
+    --output text)
+
+# Private Subnets
+PRIVATE_SUBNET_1=$(aws ec2 create-subnet \
+    --vpc-id $VPC_ID \
+    --cidr-block 10.0.2.0/24 \
+    --availability-zone us-east-1a \
+    --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=private-1a}]' \
+    --query 'Subnet.SubnetId' \
+    --output text)
+
+PRIVATE_SUBNET_2=$(aws ec2 create-subnet \
+    --vpc-id $VPC_ID \
+    --cidr-block 10.0.4.0/24 \
+    --availability-zone us-east-1b \
+    --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=private-1b}]' \
+    --query 'Subnet.SubnetId' \
+    --output text)
 ```
 
-Benefits of this setup:
-- High availability across zones
-- Isolation of application layer
-- Secure access patterns
+### 2.4 Security Group Architecture
 
-#### 3. Security Groups
-Implement tight network controls:
+<MermaidChart
+  chart={`
+graph LR
+    Internet((Internet)) --> |Port 80/443| ALB_SG[ALB Security Group]
+    ALB_SG --> |Port 8080| ECS_SG[ECS Security Group]
+    ECS_SG --> |Egress All| Internet
+`}
+/>
 
-```yaml
-security_groups:
-  - id: sg-04b9ee59e194056ab
-    name: ecs-security-group
-    rules:
-      inbound:
-        - port: 80
-          source: 0.0.0.0/0
-        - port: 8080
-          source: 0.0.0.0/0
+1. **Create Security Groups**
+```bash
+# ALB Security Group
+ALB_SG_ID=$(aws ec2 create-security-group \
+    --group-name alb-sg \
+    --description "ALB Security Group" \
+    --vpc-id $VPC_ID \
+    --query 'GroupId' \
+    --output text)
+
+# ECS Security Group
+ECS_SG_ID=$(aws ec2 create-security-group \
+    --group-name ecs-sg \
+    --description "ECS Security Group" \
+    --vpc-id $VPC_ID \
+    --query 'GroupId' \
+    --output text)
+
+# Configure Security Group Rules
+aws ec2 authorize-security-group-ingress \
+    --group-id $ALB_SG_ID \
+    --protocol tcp \
+    --port 80 \
+    --cidr 0.0.0.0/0
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $ECS_SG_ID \
+    --protocol tcp \
+    --port 8080 \
+    --source-group $ALB_SG_ID
 ```
+
+## 2.5 Load Balancer Architecture
+
+When deploying Spring Boot applications in production, the Application Load Balancer (ALB) serves as the primary entry point for all traffic. Understanding its architecture is crucial for a reliable deployment.
+
+<MermaidChart
+  chart={`
+graph TB
+    Internet((Internet)) -->|HTTPS/443| ALB[Application Load Balancer]
+    Internet -->|HTTP/80| ALB
+    
+    subgraph Load Balancer Components
+        ALB --> List80[HTTP Listener :80]
+        ALB --> List443[HTTPS Listener :443]
+        
+        List80 -->|Redirect| List443
+        List443 --> TG[Target Group]
+        
+        subgraph Target Group
+            TG --> T1[ECS Task 1]
+            TG --> T2[ECS Task 2]
+            TG --> T3[ECS Task 3]
+            
+            subgraph Health Checks
+                T1 -->|/actuator/health| HC1[Health Check]
+                T2 -->|/actuator/health| HC2[Health Check]
+                T3 -->|/actuator/health| HC3[Health Check]
+            end
+        end
+    end
+    
+    subgraph Availability Zones
+        direction TB
+        AZ1[AZ-1] --> T1
+        AZ1 --> T2
+        AZ2[AZ-2] --> T3
+    end
+`}
+/>
+
+### Understanding Load Balancer Components
+
+1. **Listeners and Routing**
+   - Port 80 (HTTP): Used for redirection to HTTPS
+   - Port 443 (HTTPS): Primary listener for secure traffic
+   - Rules determine how traffic is routed to targets
+
+2. **Target Groups**
+   - Groups ECS tasks that can receive traffic
+   - Implements health checking
+   - Manages task registration/deregistration
+   - Handles load balancing algorithms
+
+3. **Health Checks**
+   - Regular checks against /actuator/health endpoint
+   - Determines task availability
+   - Affects traffic routing decisions
+
+### Implementation Guide
+
+[Rest of the implementation details...]
+
+Would you like me to continue with the complete implementation details and best practices?
+
+1. **Create Application Load Balancer**
+```bash
+# Create ALB
+ALB_ARN=$(aws elbv2 create-load-balancer \
+    --name spring-api-alb \
+    --subnets $PUBLIC_SUBNET_1 $PUBLIC_SUBNET_2 \
+    --security-groups $ALB_SG_ID \
+    --scheme internet-facing \
+    --type application \
+    --query 'LoadBalancers[0].LoadBalancerArn' \
+    --output text)
+
+# Create Target Group
+TG_ARN=$(aws elbv2 create-target-group \
+    --name spring-api-tg \
+    --protocol HTTP \
+    --port 8080 \
+    --vpc-id $VPC_ID \
+    --target-type ip \
+    --health-check-path /actuator/health \
+    --health-check-interval-seconds 30 \
+    --health-check-timeout-seconds 5 \
+    --healthy-threshold-count 2 \
+    --unhealthy-threshold-count 3 \
+    --query 'TargetGroups[0].TargetGroupArn' \
+    --output text)
+
+# Create Listener
+aws elbv2 create-listener \
+    --load-balancer-arn $ALB_ARN \
+    --protocol HTTP \
+    --port 80 \
+    --default-actions Type=forward,TargetGroupArn=$TG_ARN
+```
+
+### 2.6 Infrastructure Validation
+
+1. **Network Validation**
+```bash
+# Test VPC
+aws ec2 describe-vpcs --vpc-ids $VPC_ID
+
+# Test Subnets
+aws ec2 describe-subnets \
+    --filters "Name=vpc-id,Values=$VPC_ID" \
+    --query 'Subnets[].{ID:SubnetId,CIDR:CidrBlock,AZ:AvailabilityZone}'
+
+# Test Security Groups
+aws ec2 describe-security-groups \
+    --group-ids $ALB_SG_ID $ECS_SG_ID
+```
+
+2. **Load Balancer Validation**
+```bash
+# Check ALB health
+aws elbv2 describe-load-balancer-health \
+    --load-balancer-arn $ALB_ARN
+
+# Check target group health
+aws elbv2 describe-target-health \
+    --target-group-arn $TG_ARN
+```
+
+### 2.7 Common Infrastructure Issues and Solutions
+
+1. **Connectivity Issues**
+```bash
+# Check route tables
+aws ec2 describe-route-tables \
+    --filters "Name=vpc-id,Values=$VPC_ID"
+
+# Verify NAT Gateway status
+aws ec2 describe-nat-gateways \
+    --filter "Name=vpc-id,Values=$VPC_ID"
+
+# Check security group rules
+aws ec2 describe-security-group-rules \
+    --filters "Name=group-id,Values=$ECS_SG_ID"
+```
+
+2. **Load Balancer Issues**
+```bash
+# Check ALB access logs
+aws s3 ls s3://your-alb-logs-bucket/AWSLogs/
+
+# Enable access logging
+aws elbv2 modify-load-balancer-attributes \
+    --load-balancer-arn $ALB_ARN \
+    --attributes Key=access_logs.s3.enabled,Value=true \
+    Key=access_logs.s3.bucket,Value=your-alb-logs-bucket
+```
+
+[End of Part 2 - Continue with Part 3 (ECS and Container Registry Setup)?]
+
+## 3. Container Registry and ECS Setup
+
+### 3.1 Understanding Container Registry (ECR)
+
+Amazon Elastic Container Registry (ECR) serves as the backbone of your container deployment strategy. Think of it as a secure, managed container image library that seamlessly integrates with ECS.
+
+<MermaidChart
+  chart={`
+sequenceDiagram
+    participant Dev as Developer
+    participant CI as CI/CD Pipeline
+    participant ECR as Container Registry
+    participant ECS as ECS Service
+    
+    Dev->>CI: Push Code
+    CI->>CI: Build Image
+    CI->>ECR: Push Image
+    Note over ECR: Image Scanning
+    ECS->>ECR: Pull Image
+    Note over ECS: Deploy Container
+    
+    loop Health Check
+        ECS->>ECS: Monitor Container Health
+    end
+`}
+/>
+
+#### Why ECR is Critical for Production
+1. **Security**: 
+   - Private repository for your container images
+   - Integration with IAM for access control
+   - Automatic vulnerability scanning
+   - Encryption at rest using AWS KMS
+
+2. **Performance**:
+   - Fast image pulls within AWS network
+   - Reduced latency for ECS deployments
+   - Regional replication for global deployments
+
+3. **Cost Efficiency**:
+   - Pay only for storage and data transfer
+   - No infrastructure to manage
+   - Lifecycle policies for automatic cleanup
+
+Here's how to set up your ECR repository with production-grade configurations:
+
+```bash
+# Create repository with security features enabled
+REPO_URI=$(aws ecr create-repository \
+    --repository-name spring-api \
+    --image-scanning-configuration scanOnPush=true \
+    --encryption-configuration encryptionType=KMS \
+    --image-tag-mutability IMMUTABLE \
+    --query 'repository.repositoryUri' \
+    --output text)
+```
+
+What this configuration does:
+- Enables automatic vulnerability scanning
+- Uses KMS encryption for security
+- Makes tags immutable to prevent overwrites
+- Provides a unique URI for your repository
+
+### 3.2 Image Lifecycle Management
+
+In production environments, managing container images effectively is crucial. You need to balance between keeping necessary images and controlling storage costs.
+
+#### Best Practices for Image Management:
+
+1. **Tagging Strategy**:
+   ```bash
+   # Example tagging scheme
+   VERSION=$(git rev-parse --short HEAD)
+   ENVIRONMENT="prod"
+   BUILD_NUMBER=${CIRCLE_BUILD_NUM:-local}
+   
+   docker tag spring-api:${VERSION} ${REPO_URI}:${VERSION}
+   docker tag spring-api:${VERSION} ${REPO_URI}:${ENVIRONMENT}-${BUILD_NUMBER}
+   docker tag spring-api:${VERSION} ${REPO_URI}:latest
+   ```
+
+   Why this matters:
+   - Git hash provides traceability
+   - Environment tag helps in deployment management
+   - Build number enables rollback capabilities
+
+2. **Lifecycle Policies**:
+```json
+{
+    "rules": [
+        {
+            "rulePriority": 1,
+            "description": "Keep last 30 production images",
+            "selection": {
+                "tagStatus": "tagged",
+                "tagPrefixList": ["prod"],
+                "countType": "imageCountMoreThan",
+                "countNumber": 30
+            },
+            "action": {
+                "type": "expire"
+            }
+        }
+    ]
+}
+```
+
+This policy:
+- Retains important production images
+- Automatically cleans up old images
+- Reduces storage costs
+- Maintains compliance requirements
+
+### 3.3 ECS Cluster Architecture
+
+Your ECS cluster design significantly impacts scalability, reliability, and cost efficiency.
+
+<MermaidChart
+  chart={`
+graph TB
+    subgraph "ECS Cluster Design"
+        subgraph "Production Workloads"
+            PS[Production Service] --> PT1[Task 1]
+            PS --> PT2[Task 2]
+            PT1 --> PC1[Container]
+            PT2 --> PC2[Container]
+        end
+        subgraph "Capacity Providers"
+            CP1[Fargate] --> PS
+            CP2[Fargate Spot] --> PS
+        end
+        subgraph "Auto Scaling"
+            M1[CPU Metrics]
+            M2[Memory Metrics]
+            M3[Custom Metrics]
+        end
+    end
+`}
+/>
+
+#### Understanding Capacity Providers
+
+When setting up your ECS cluster, choosing the right capacity provider strategy is crucial:
+
+```bash
+aws ecs create-cluster \
+    --cluster-name production \
+    --capacity-providers FARGATE FARGATE_SPOT \
+    --default-capacity-provider-strategy \
+    capacityProvider=FARGATE,weight=1,base=1 \
+    capacityProvider=FARGATE_SPOT,weight=3
+```
+
+This configuration:
+- Uses both Fargate and Fargate Spot instances
+- Maintains at least one Fargate task for stability
+- Leverages Spot instances for cost savings
+- Provides automatic scaling capabilities
+
+Real-world tip: Many organizations use a mix of 30% Fargate and 70% Fargate Spot for production workloads, saving up to 70% on compute costs while maintaining stability.
+
+### 3.4 Task Definition Deep Dive
+
+Your task definition is the blueprint for how your application runs in ECS. Getting this right is crucial for production performance.
+
+#### Memory and CPU Allocation
+
+Understanding container memory patterns is crucial:
+
+```json
+{
+  "containerDefinitions": [
+    {
+      "memory": 2048,
+      "memoryReservation": 1024,
+      "cpu": 1024,
+      "environment": [
+        {
+          "name": "JAVA_OPTS",
+          "value": "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Why these settings matter:
+- Memory reservation ensures resource availability
+- CPU units align with Java thread pool sizing
+- JVM settings optimize garbage collection
+- Container support enables proper resource detection
+
+#### Health Check Configuration
+
+Proper health checks are crucial for production reliability:
+
+```json
+"healthCheck": {
+  "command": [
+    "CMD-SHELL",
+    "curl -f http://localhost:8080/actuator/health || exit 1"
+  ],
+  "interval": 30,
+  "timeout": 5,
+  "retries": 3,
+  "startPeriod": 60
+}
+```
+
+Real-world considerations:
+- Start period accommodates Java warm-up time
+- Interval balances responsiveness and overhead
+- Timeout prevents hanging health checks
+- Retries prevent false negatives
