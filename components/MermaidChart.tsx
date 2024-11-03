@@ -9,8 +9,8 @@ mermaid.initialize({
   theme: 'default',
   securityLevel: 'loose',
   themeVariables: {
-    fontFamily: 'system-ui'
-  }
+    fontFamily: 'system-ui',
+  },
 })
 
 export const MermaidChart = ({ chart }: { chart: string }) => {
