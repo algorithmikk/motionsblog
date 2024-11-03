@@ -15,5 +15,5 @@ export const components: MDXComponents = {
   pre: Pre,
   table: TableWrapper,
   BlogNewsletterForm,
-  MermaidChart, // Add this line
+  MermaidChart,
 }
